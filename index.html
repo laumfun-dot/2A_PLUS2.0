@@ -194,7 +194,7 @@
                 setUsers(updatedUsers);
                 await setDoc(doc(window.db, "users", "class2a"), { list: updatedUsers });
 
-                setPwdMsg('密碼修改成功！全網頁已即時更新。');
+                setPwdMsg('密碼修改成功！');
                 setTimeout(() => {
                     setShowChangePwdModal(false);
                     setOldPasswordInput('');
