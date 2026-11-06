@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>2Aplus 內部平台</title>
+    <title>2Aplus 內部平台 (Firebase 雲端版)</title>
     <!-- Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- React & ReactDOM CDN -->
@@ -13,6 +13,31 @@
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <!-- Lucide Icons -->
     <script src="https://unpkg.com/lucide@latest"></script>
+
+    <!-- Firebase SDK (ES Module) -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+        import { getFirestore, collection, getDocs, addDoc, updateDoc, deleteDoc, doc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+
+        // ==========================================
+        // 💡 請在此處填入你從 Firebase 控制台取得的設定
+        // ==========================================
+        const firebaseConfig = {
+            apiKey: "YOUR_API_KEY",
+            authDomain: "YOUR_AUTH_DOMAIN",
+            projectId: "YOUR_PROJECT_ID",
+            storageBucket: "YOUR_STORAGE_BUCKET",
+            messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
+            appId: "YOUR_APP_ID"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+
+        // 將 Firebase 工具掛載到全域 window 物件，以便 React 程式碼調用
+        window.db = db;
+        window.firebaseFns = { collection, getDocs, addDoc, updateDoc, deleteDoc, doc, setDoc, onSnapshot };
+    </script>
 </head>
 <body class="bg-slate-950 text-slate-100 font-sans antialiased">
     <div id="root"></div>
@@ -59,22 +84,12 @@
         ];
 
         function App() {
-            const [users, setUsers] = useState(() => {
-                try {
-                    const saved = localStorage.getItem('2aplus_users');
-                    return saved ? JSON.parse(saved) : INITIAL_USERS;
-                } catch (e) {
-                    return INITIAL_USERS;
-                }
-            });
-
+            const [users, setUsers] = useState(INITIAL_USERS);
             const [currentUser, setCurrentUser] = useState(() => {
                 try {
                     const saved = localStorage.getItem('2aplus_current_user');
                     return saved ? JSON.parse(saved) : null;
-                } catch (e) {
-                    return null;
-                }
+                } catch (e) { return null; }
             });
 
             const [loginUsername, setLoginUsername] = useState('');
@@ -83,21 +98,11 @@
             const [activeTab, setActiveTab] = useState('homework');
 
             // Data states
-            const [homeworkList, setHomeworkList] = useState([
-                { id: 1, subject: '數學科', teacher: '陳老師', content: '完成工作紙 Ch.4 習題 (Q1 - Q15)', page: 'P.12 - P.14', remark: '請寫齊算式', startDate: '2026-11-02', endDate: '2026-11-09', completedUsers: ['2A01', '2A05'] }
-            ]);
-            const [examList, setExamList] = useState([
-                { id: 1, type: 'Quiz', subject: '英文科', content: 'Unit 3 Vocabulary & Grammar', remark: '包含默書', date: '2026-11-12' }
-            ]);
-            const [announcements, setAnnouncements] = useState([
-                { id: 1, title: '秋季班會旅行地點意見收集', content: '請各同學於本週五前完成投票。', author: '2A05 (Boss)', date: '2026-11-01', urgent: true }
-            ]);
-            const [qaList, setQaList] = useState([
-                { id: 1, author: '2A02', subject: '數學', title: '數學 P.14 第 8 題點樣做？', content: '求大神解惑！', resolved: false, answers: [{ id: 101, author: '2A17', content: '移項再用公式即可。' }] }
-            ]);
-            const [votes, setVotes] = useState([
-                { id: 1, title: '2026 秋季班會旅行地點選擇', isMultiple: false, isAnonymous: true, options: [{ id: 1, text: '西貢海濱公園 (BBQ)', votes: ['2A01'] }, { id: 2, text: '迪士尼樂園', votes: [] }] }
-            ]);
+            const [homeworkList, setHomeworkList] = useState([]);
+            const [examList, setExamList] = useState([]);
+            const [announcements, setAnnouncements] = useState([]);
+            const [qaList, setQaList] = useState([]);
+            const [votes, setVotes] = useState([]);
 
             // Form states
             const [editingHwId, setEditingHwId] = useState(null);
@@ -116,7 +121,38 @@
             // Admin states
             const [selectedUser, setSelectedUser] = useState(''); const [newPassword, setNewPassword] = useState(''); const [newPermLevel, setNewPermLevel] = useState(1); const [adminMsg, setAdminMsg] = useState('');
 
-            useEffect(() => { localStorage.setItem('2aplus_users', JSON.stringify(users)); }, [users]);
+            // --- FIREBASE REALTIME SYNC ---
+            useEffect(() => {
+                if (!window.db) return;
+                const { collection, onSnapshot } = window.firebaseFns;
+
+                // 監聽各個 Firestore Collection 即時同步
+                const unsubHw = onSnapshot(collection(window.db, "homework"), (snapshot) => {
+                    setHomeworkList(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+                });
+                const unsubExam = onSnapshot(collection(window.db, "exams"), (snapshot) => {
+                    setExamList(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+                });
+                const unsubAnn = onSnapshot(collection(window.db, "announcements"), (snapshot) => {
+                    setAnnouncements(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+                });
+                const unsubQa = onSnapshot(collection(window.db, "qa"), (snapshot) => {
+                    setQaList(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+                });
+                const unsubVote = onSnapshot(collection(window.db, "votes"), (snapshot) => {
+                    setVotes(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+                });
+                const unsubUsers = onSnapshot(collection(window.db, "users"), (snapshot) => {
+                    if (!snapshot.empty) {
+                        setUsers(snapshot.docs.map(doc => doc.data()));
+                    }
+                });
+
+                return () => {
+                    unsubHw(); unsubExam(); unsubAnn(); unsubQa(); unsubVote(); unsubUsers();
+                };
+            }, []);
+
             useEffect(() => {
                 if (currentUser) localStorage.setItem('2aplus_current_user', JSON.stringify(currentUser));
                 else localStorage.removeItem('2aplus_current_user');
@@ -134,8 +170,8 @@
                     <div className="min-h-screen bg-slate-950 text-slate-100 flex items-center justify-center p-4">
                         <div className="w-full max-w-md bg-slate-900 rounded-3xl shadow-2xl border border-slate-800 p-8 space-y-6">
                             <div className="text-center">
-                                <h1 className="text-3xl font-black bg-gradient-to-r from-blue-400 to-indigo-300 bg-clip-text text-transparent">2Aplus 內部平台</h1>
-                                <p className="text-slate-400 text-sm mt-1">中學 2A 班雲端學術與管理系統</p>
+                                <h1 className="text-3xl font-black bg-gradient-to-r from-blue-400 to-indigo-300 bg-clip-text text-transparent">2Aplus 雲端平台</h1>
+                                <p className="text-slate-400 text-sm mt-1">中學 2A 班 Firebase 即時同步系統</p>
                             </div>
                             <form onSubmit={handleLogin} className="space-y-4">
                                 {loginError && <div className="bg-red-500/10 border border-red-500/50 rounded-xl p-3 text-red-400 text-xs">{loginError}</div>}
@@ -164,7 +200,7 @@
                         <div className="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
                             <div className="flex items-center space-x-3">
                                 <span className="text-xl font-black bg-gradient-to-r from-blue-400 to-indigo-300 bg-clip-text text-transparent">2Aplus</span>
-                                <span className="text-xs bg-slate-800 text-slate-400 px-2 py-0.5 rounded-md border border-slate-700">班級平台</span>
+                                <span className="text-xs bg-slate-800 text-slate-400 px-2 py-0.5 rounded-md border border-slate-700">雲端同步版</span>
                             </div>
                             <div className="flex items-center space-x-4">
                                 <div className="flex items-center space-x-2 bg-slate-800 px-3 py-1.5 rounded-xl border border-slate-700 text-sm font-semibold">
@@ -195,17 +231,19 @@
                     <main className="flex-1 max-w-7xl w-full mx-auto px-4 py-8">
                         {activeTab === 'homework' && (
                             <div className="space-y-6">
-                                <h2 className="text-2xl font-bold">班級功課清單</h2>
+                                <h2 className="text-2xl font-bold">班級功課清單 (雲端實時同步)</h2>
                                 {currentUser.permission >= 2 && (
                                     <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6">
                                         <h3 className="text-base font-semibold text-blue-400 mb-4">{editingHwId ? '修改功課' : '新增功課'}</h3>
-                                        <form onSubmit={e => {
+                                        <form onSubmit={async e => {
                                             e.preventDefault();
+                                            const { collection, addDoc, updateDoc, doc } = window.firebaseFns;
+                                            const payload = { subject: hwSubject, teacher: hwTeacher, content: hwContent, page: hwPage, remark: hwRemark, startDate: hwStart, endDate: hwEnd };
                                             if (editingHwId) {
-                                                setHomeworkList(homeworkList.map(hw => hw.id === editingHwId ? { ...hw, subject: hwSubject, teacher: hwTeacher, content: hwContent, page: hwPage, remark: hwRemark, startDate: hwStart, endDate: hwEnd } : hw));
+                                                await updateDoc(doc(window.db, "homework", editingHwId), payload);
                                                 setEditingHwId(null);
                                             } else {
-                                                setHomeworkList([{ id: Date.now(), subject: hwSubject, teacher: hwTeacher, content: hwContent, page: hwPage, remark: hwRemark, startDate: hwStart, endDate: hwEnd, completedUsers: [] }, ...homeworkList]);
+                                                await addDoc(collection(window.db, "homework"), { ...payload, completedUsers: [] });
                                             }
                                             setHwSubject(''); setHwTeacher(''); setHwContent(''); setHwPage(''); setHwRemark(''); setHwStart(''); setHwEnd('');
                                         }} className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -222,12 +260,14 @@
                                 )}
                                 <div className="space-y-4">
                                     {homeworkList.map(hw => {
-                                        const isDone = hw.completedUsers.includes(currentUser.username);
+                                        const isDone = hw.completedUsers?.includes(currentUser.username);
                                         return (
                                             <div key={hw.id} className={`bg-slate-900 border rounded-2xl p-5 flex justify-between items-center ${isDone ? 'border-emerald-500/30 opacity-75' : 'border-slate-800'}`}>
                                                 <div className="flex items-start space-x-4">
-                                                    <button onClick={() => {
-                                                        setHomeworkList(homeworkList.map(item => item.id === hw.id ? { ...item, completedUsers: isDone ? item.completedUsers.filter(u => u !== currentUser.username) : [...item.completedUsers, currentUser.username] } : item));
+                                                    <button onClick={async () => {
+                                                        const { updateDoc, doc } = window.firebaseFns;
+                                                        const updatedUsers = isDone ? hw.completedUsers.filter(u => u !== currentUser.username) : [...(hw.completedUsers || []), currentUser.username];
+                                                        await updateDoc(doc(window.db, "homework", hw.id), { completedUsers: updatedUsers });
                                                     }} className={`mt-1 font-bold px-3 py-1 rounded-lg border text-xs ${isDone ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40' : 'bg-slate-800 text-slate-400 border-slate-700'}`}>
                                                         {isDone ? '已完成 ✓' : '標記完成'}
                                                     </button>
@@ -240,7 +280,7 @@
                                                 {currentUser.permission >= 2 && (
                                                     <div className="flex gap-2">
                                                         <button onClick={() => { setEditingHwId(hw.id); setHwSubject(hw.subject); setHwTeacher(hw.teacher); setHwContent(hw.content); setHwPage(hw.page); setHwRemark(hw.remark); setHwStart(hw.startDate); setHwEnd(hw.endDate); }} className="text-blue-400 text-xs">編輯</button>
-                                                        <button onClick={() => setHomeworkList(homeworkList.filter(h => h.id !== hw.id))} className="text-red-400 text-xs">刪除</button>
+                                                        <button onClick={async () => { await window.firebaseFns.deleteDoc(window.firebaseFns.doc(window.db, "homework", hw.id)); }} className="text-red-400 text-xs">刪除</button>
                                                     </div>
                                                 )}
                                             </div>
@@ -256,13 +296,15 @@
                                 {currentUser.permission >= 2 && (
                                     <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6">
                                         <h3 className="text-base font-semibold text-amber-400 mb-4">新增/修改測驗日程</h3>
-                                        <form onSubmit={e => {
+                                        <form onSubmit={async e => {
                                             e.preventDefault();
+                                            const { collection, addDoc, updateDoc, doc } = window.firebaseFns;
+                                            const payload = { type: exType, subject: exSubject, content: exContent, remark: exRemark, date: exDate };
                                             if (editingExamId) {
-                                                setExamList(examList.map(ex => ex.id === editingExamId ? { ...ex, type: exType, subject: exSubject, content: exContent, remark: exRemark, date: exDate } : ex));
+                                                await updateDoc(doc(window.db, "exams", editingExamId), payload);
                                                 setEditingExamId(null);
                                             } else {
-                                                setExamList([{ id: Date.now(), type: exType, subject: exSubject, content: exContent, remark: exRemark, date: exDate }, ...examList]);
+                                                await addDoc(collection(window.db, "exams"), payload);
                                             }
                                             setExSubject(''); setExContent(''); setExRemark(''); setExDate('');
                                         }} className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -292,7 +334,7 @@
                                                 {currentUser.permission >= 2 && (
                                                     <div className="flex gap-2 justify-end mt-1 text-xs">
                                                         <button onClick={() => { setEditingExamId(ex.id); setExType(ex.type); setExSubject(ex.subject); setExContent(ex.content); setExRemark(ex.remark); setExDate(ex.date); }} className="text-blue-400">編輯</button>
-                                                        <button onClick={() => setExamList(examList.filter(e => e.id !== ex.id))} className="text-red-400">刪除</button>
+                                                        <button onClick={async () => { await window.firebaseFns.deleteDoc(window.firebaseFns.doc(window.db, "exams", ex.id)); }} className="text-red-400">刪除</button>
                                                     </div>
                                                 )}
                                             </div>
@@ -308,13 +350,15 @@
                                 {currentUser.permission >= 2 && (
                                     <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6">
                                         <h3 className="text-base font-semibold text-emerald-400 mb-4">{editingAnnId ? '修改公告' : '發布班級公告'}</h3>
-                                        <form onSubmit={e => {
+                                        <form onSubmit={async e => {
                                             e.preventDefault();
+                                            const { collection, addDoc, updateDoc, doc } = window.firebaseFns;
+                                            const payload = { title: annTitle, content: annContent, urgent: annUrgent, author: currentUser.username, date: new Date().toISOString().split('T')[0] };
                                             if (editingAnnId) {
-                                                setAnnouncements(announcements.map(a => a.id === editingAnnId ? { ...a, title: annTitle, content: annContent, urgent: annUrgent } : a));
+                                                await updateDoc(doc(window.db, "announcements", editingAnnId), payload);
                                                 setEditingAnnId(null);
                                             } else {
-                                                setAnnouncements([{ id: Date.now(), title: annTitle, content: annContent, author: currentUser.username, date: new Date().toISOString().split('T')[0], urgent: annUrgent }, ...announcements]);
+                                                await addDoc(collection(window.db, "announcements"), payload);
                                             }
                                             setAnnTitle(''); setAnnContent(''); setAnnUrgent(false);
                                         }} className="space-y-4">
@@ -343,7 +387,7 @@
                                                 {currentUser.permission >= 2 && (
                                                     <div className="flex gap-2">
                                                         <button onClick={() => { setEditingAnnId(ann.id); setAnnTitle(ann.title); setAnnContent(ann.content); setAnnUrgent(ann.urgent); }} className="text-blue-400">編輯</button>
-                                                        <button onClick={() => setAnnouncements(announcements.filter(a => a.id !== ann.id))} className="text-red-400">刪除</button>
+                                                        <button onClick={async () => { await window.firebaseFns.deleteDoc(window.firebaseFns.doc(window.db, "announcements", ann.id)); }} className="text-red-400">刪除</button>
                                                     </div>
                                                 )}
                                             </div>
@@ -358,9 +402,10 @@
                                 <h2 className="text-2xl font-bold">課業互助區</h2>
                                 <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6">
                                     <h3 className="text-base font-semibold text-purple-400 mb-4">我要發問</h3>
-                                    <form onSubmit={e => {
+                                    <form onSubmit={async e => {
                                         e.preventDefault();
-                                        setQaList([{ id: Date.now(), author: currentUser.username, subject: qaSubject, title: qaTitle, content: qaContent, resolved: false, answers: [] }, ...qaList]);
+                                        const { collection, addDoc } = window.firebaseFns;
+                                        await addDoc(collection(window.db, "qa"), { author: currentUser.username, subject: qaSubject, title: qaTitle, content: qaContent, resolved: false, answers: [] });
                                         setQaTitle(''); setQaContent('');
                                     }} className="space-y-4">
                                         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -386,27 +431,36 @@
                                                     <div>發問: {qa.author}</div>
                                                     {currentUser.permission >= 2 && (
                                                         <div className="flex gap-2 mt-1">
-                                                            <button onClick={() => setQaList(qaList.map(q => q.id === qa.id ? { ...q, resolved: !q.resolved } : q))} className="text-emerald-400">{qa.resolved ? '標記未解決' : '標記已解決'}</button>
-                                                            <button onClick={() => setQaList(qaList.filter(q => q.id !== qa.id))} className="text-red-400">刪除</button>
+                                                            <button onClick={async () => {
+                                                                const { updateDoc, doc } = window.firebaseFns;
+                                                                await updateDoc(doc(window.db, "qa", qa.id), { resolved: !qa.resolved });
+                                                            }} className="text-emerald-400">{qa.resolved ? '標記未解決' : '標記已解決'}</button>
+                                                            <button onClick={async () => { await window.firebaseFns.deleteDoc(window.firebaseFns.doc(window.db, "qa", qa.id)); }} className="text-red-400">刪除</button>
                                                         </div>
                                                     )}
                                                 </div>
                                             </div>
                                             <p className="text-slate-300 text-sm">{qa.content}</p>
                                             <div className="border-t border-slate-800 pt-3 space-y-2">
-                                                <h4 className="text-xs font-semibold text-slate-400">解答 ({qa.answers.length})</h4>
-                                                {qa.answers.map(ans => (
+                                                <h4 className="text-xs font-semibold text-slate-400">解答 ({qa.answers?.length || 0})</h4>
+                                                {(qa.answers || []).map(ans => (
                                                     <div key={ans.id} className="bg-slate-950 p-3 rounded-xl border border-slate-800 text-sm flex justify-between items-center">
                                                         <div><span className="text-xs text-blue-400 font-semibold">{ans.author}: </span><span className="text-slate-200">{ans.content}</span></div>
-                                                        {currentUser.permission >= 2 && <button onClick={() => setQaList(qaList.map(q => q.id === qa.id ? { ...q, answers: q.answers.filter(a => a.id !== ans.id) } : q))} className="text-red-400 text-xs">刪除</button>}
+                                                        {currentUser.permission >= 2 && <button onClick={async () => {
+                                                            const { updateDoc, doc } = window.firebaseFns;
+                                                            const newAnswers = qa.answers.filter(a => a.id !== ans.id);
+                                                            await updateDoc(doc(window.db, "qa", qa.id), { answers: newAnswers });
+                                                        }} className="text-red-400 text-xs">刪除</button>}
                                                     </div>
                                                 ))}
                                                 <div className="flex gap-2 pt-1">
                                                     <input type="text" placeholder="撰寫解答..." id={`ans-${qa.id}`} className="flex-1 bg-slate-950 border border-slate-800 rounded-xl px-4 py-1.5 text-sm" />
-                                                    <button onClick={() => {
+                                                    <button onClick={async () => {
                                                         const input = document.getElementById(`ans-${qa.id}`);
                                                         if (!input.value.trim()) return;
-                                                        setQaList(qaList.map(q => q.id === qa.id ? { ...q, answers: [...q.answers, { id: Date.now(), author: currentUser.username, content: input.value }] } : q));
+                                                        const { updateDoc, doc } = window.firebaseFns;
+                                                        const newAnswers = [...(qa.answers || []), { id: Date.now(), author: currentUser.username, content: input.value }];
+                                                        await updateDoc(doc(window.db, "qa", qa.id), { answers: newAnswers });
                                                         input.value = '';
                                                     }} className="bg-blue-600 text-white px-4 py-1.5 rounded-xl text-sm">回覆</button>
                                                 </div>
@@ -423,15 +477,17 @@
                                 {currentUser.permission >= 2 && (
                                     <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6">
                                         <h3 className="text-base font-semibold text-indigo-400 mb-4">{editingVoteId ? '修改投票' : '發起新投票'}</h3>
-                                        <form onSubmit={e => {
+                                        <form onSubmit={async e => {
                                             e.preventDefault();
                                             const validOptions = voteOptions.filter(opt => opt.trim() !== '');
                                             if (validOptions.length < 2) return;
+                                            const { collection, addDoc, updateDoc, doc } = window.firebaseFns;
+                                            const payload = { title: voteTitle, isAnonymous: voteIsAnonymous, isMultiple: voteIsMultiple, options: validOptions.map((text, idx) => ({ id: idx + 1, text, votes: [] })) };
                                             if (editingVoteId) {
-                                                setVotes(votes.map(v => v.id === editingVoteId ? { ...v, title: voteTitle, isAnonymous: voteIsAnonymous, isMultiple: voteIsMultiple, options: validOptions.map((text, idx) => ({ id: idx + 1, text, votes: [] })) } : v));
+                                                await updateDoc(doc(window.db, "votes", editingVoteId), payload);
                                                 setEditingVoteId(null);
                                             } else {
-                                                setVotes([{ id: Date.now(), title: voteTitle, isAnonymous: voteIsAnonymous, isMultiple: voteIsMultiple, options: validOptions.map((text, idx) => ({ id: idx + 1, text, votes: [] })) }, ...votes]);
+                                                await addDoc(collection(window.db, "votes"), payload);
                                             }
                                             setVoteTitle(''); setVoteOptions(['', '']);
                                         }} className="space-y-4">
@@ -453,7 +509,7 @@
                                 )}
                                 <div className="space-y-4">
                                     {votes.map(v => {
-                                        const totalCount = v.options.reduce((acc, curr) => acc + curr.votes.length, 0);
+                                        const totalCount = v.options.reduce((acc, curr) => acc + (curr.votes?.length || 0), 0);
                                         return (
                                             <div key={v.id} className="bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-4">
                                                 <div className="flex justify-between items-start">
@@ -461,29 +517,31 @@
                                                     {currentUser.permission >= 2 && (
                                                         <div className="flex gap-2 text-xs">
                                                             <button onClick={() => { setEditingVoteId(v.id); setVoteTitle(v.title); setVoteIsAnonymous(v.isAnonymous); setVoteIsMultiple(v.isMultiple); setVoteOptions(v.options.map(o => o.text)); }} className="text-blue-400">編輯</button>
-                                                            <button onClick={() => setVotes(votes.filter(item => item.id !== v.id))} className="text-red-400">刪除</button>
+                                                            <button onClick={async () => { await window.firebaseFns.deleteDoc(window.firebaseFns.doc(window.db, "votes", v.id)); }} className="text-red-400">刪除</button>
                                                         </div>
                                                     )}
                                                 </div>
                                                 <div className="space-y-3">
                                                     {v.options.map(opt => {
-                                                        const hasVoted = opt.votes.includes(currentUser.username);
-                                                        const pct = totalCount > 0 ? Math.round((opt.votes.length / totalCount) * 100) : 0;
+                                                        const hasVoted = opt.votes?.includes(currentUser.username);
+                                                        const pct = totalCount > 0 ? Math.round(((opt.votes?.length || 0) / totalCount) * 100) : 0;
                                                         return (
                                                             <div key={opt.id} className="space-y-1">
-                                                                <button onClick={() => {
-                                                                    setVotes(votes.map(vote => vote.id === v.id ? { ...vote, options: vote.options.map(o => {
+                                                                <button onClick={async () => {
+                                                                    const { updateDoc, doc } = window.firebaseFns;
+                                                                    const newOptions = v.options.map(o => {
                                                                         if (o.id === opt.id) {
-                                                                            const voted = o.votes.includes(currentUser.username);
-                                                                            return { ...o, votes: voted ? o.votes.filter(u => u !== currentUser.username) : [...o.votes, currentUser.username] };
-                                                                        } else if (!vote.isMultiple) {
-                                                                            return { ...o, votes: o.votes.filter(u => u !== currentUser.username) };
+                                                                            const voted = o.votes?.includes(currentUser.username);
+                                                                            return { ...o, votes: voted ? o.votes.filter(u => u !== currentUser.username) : [...(o.votes || []), currentUser.username] };
+                                                                        } else if (!v.isMultiple) {
+                                                                            return { ...o, votes: (o.votes || []).filter(u => u !== currentUser.username) };
                                                                         }
                                                                         return o;
-                                                                    }) } : vote));
+                                                                    });
+                                                                    await updateDoc(doc(window.db, "votes", v.id), { options: newOptions });
                                                                 }} className={`w-full flex justify-between items-center p-3 rounded-xl border text-sm ${hasVoted ? 'bg-indigo-600/20 border-indigo-500/50 text-indigo-300 font-bold' : 'bg-slate-950 border-slate-800 text-slate-300'}`}>
                                                                     <span>{hasVoted ? '✓ ' : ''}{opt.text}</span>
-                                                                    <span className="font-mono text-xs">{opt.votes.length} 票 ({pct}%)</span>
+                                                                    <span className="font-mono text-xs">{opt.votes?.length || 0} 票 ({pct}%)</span>
                                                                 </button>
                                                                 <div className="w-full bg-slate-950 h-2 rounded-full overflow-hidden border border-slate-800"><div className="bg-indigo-500 h-full" style={{ width: `${pct}%` }} /></div>
                                                             </div>
@@ -502,10 +560,14 @@
                                 <h2 className="text-2xl font-bold">後台帳號與權限控制 (LV.3 Boss)</h2>
                                 {adminMsg && <div className="bg-emerald-500/10 text-emerald-400 p-3 rounded-xl text-sm">{adminMsg}</div>}
                                 <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6">
-                                    <form onSubmit={e => {
+                                    <form onSubmit={async e => {
                                         e.preventDefault();
                                         if (!selectedUser) return;
-                                        setUsers(users.map(u => u.username === selectedUser ? { ...u, password: newPassword.trim() ? newPassword.trim() : u.password, permission: Number(newPermLevel) } : u));
+                                        const { setDoc, doc } = window.firebaseFns;
+                                        const updatedUsers = users.map(u => u.username === selectedUser ? { ...u, password: newPassword.trim() ? newPassword.trim() : u.password, permission: Number(newPermLevel) } : u);
+                                        setUsers(updatedUsers);
+                                        // 儲存全部用戶到 Firestore 的 users/class2a 文件中
+                                        await setDoc(doc(window.db, "users", "class2a"), { list: updatedUsers });
                                         if (currentUser.username === selectedUser) setCurrentUser(prev => ({ ...prev, password: newPassword.trim() ? newPassword.trim() : prev.password, permission: Number(newPermLevel) }));
                                         setAdminMsg(`成功更新 ${selectedUser} 的資料！`);
                                         setTimeout(() => setAdminMsg(''), 3000);
