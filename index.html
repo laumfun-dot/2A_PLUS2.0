@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>2Aplus 內部平台 (Firebase 雲端版)</title>
+    <title>2Aplus 內部平台 (完整雲端即時同步版)</title>
     <!-- Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- React & ReactDOM CDN -->
@@ -23,18 +23,17 @@
         // 💡 請在此處填入你從 Firebase 控制台取得的設定
         // ==========================================
         const firebaseConfig = {
-            apiKey: "YOUR_API_KEY",
-            authDomain: "YOUR_AUTH_DOMAIN",
-            projectId: "YOUR_PROJECT_ID",
-            storageBucket: "YOUR_STORAGE_BUCKET",
-            messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
-            appId: "YOUR_APP_ID"
+            apiKey: "AIzaSyCDzJhvG7xV7mLJhgWBnF9LOn0nUXLtg4E",
+            authDomain: "aplus2-2812f.firebaseapp.com",
+            projectId: "aplus2-2812f",
+            storageBucket: "aplus2-2812f.firebasestorage.app",
+            messagingSenderId: "368944762456",
+            appId: "1:368944762456:web:f4a2024f0ac4bf0c0d042d"
         };
 
         const app = initializeApp(firebaseConfig);
         const db = getFirestore(app);
 
-        // 將 Firebase 工具掛載到全域 window 物件，以便 React 程式碼調用
         window.db = db;
         window.firebaseFns = { collection, getDocs, addDoc, updateDoc, deleteDoc, doc, setDoc, onSnapshot };
     </script>
@@ -104,6 +103,12 @@
             const [qaList, setQaList] = useState([]);
             const [votes, setVotes] = useState([]);
 
+            // Self Password Change State
+            const [showChangePwdModal, setShowChangePwdModal] = useState(false);
+            const [oldPasswordInput, setOldPasswordInput] = useState('');
+            const [newPasswordInput, setNewPasswordInput] = useState('');
+            const [pwdMsg, setPwdMsg] = useState('');
+
             // Form states
             const [editingHwId, setEditingHwId] = useState(null);
             const [hwSubject, setHwSubject] = useState(''); const [hwTeacher, setHwTeacher] = useState(''); const [hwContent, setHwContent] = useState(''); const [hwPage, setHwPage] = useState(''); const [hwRemark, setHwRemark] = useState(''); const [hwStart, setHwStart] = useState(''); const [hwEnd, setHwEnd] = useState('');
@@ -126,7 +131,6 @@
                 if (!window.db) return;
                 const { collection, onSnapshot } = window.firebaseFns;
 
-                // 監聽各個 Firestore Collection 即時同步
                 const unsubHw = onSnapshot(collection(window.db, "homework"), (snapshot) => {
                     setHomeworkList(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
                 });
@@ -144,7 +148,8 @@
                 });
                 const unsubUsers = onSnapshot(collection(window.db, "users"), (snapshot) => {
                     if (!snapshot.empty) {
-                        setUsers(snapshot.docs.map(doc => doc.data()));
+                        const fetchedUsers = snapshot.docs.map(doc => doc.data().list).flat();
+                        if (fetchedUsers.length > 0) setUsers(fetchedUsers);
                     }
                 });
 
@@ -153,16 +158,49 @@
                 };
             }, []);
 
+            // 即時同步當前登入用戶在 users 列表中的最新狀態（密碼/權限變更後全網頁自動更新）
             useEffect(() => {
-                if (currentUser) localStorage.setItem('2aplus_current_user', JSON.stringify(currentUser));
-                else localStorage.removeItem('2aplus_current_user');
-            }, [currentUser]);
+                if (currentUser) {
+                    const latestUser = users.find(u => u.username === currentUser.username);
+                    if (latestUser) {
+                        setCurrentUser(latestUser);
+                        localStorage.setItem('2aplus_current_user', JSON.stringify(latestUser));
+                    }
+                }
+            }, [users]);
 
             const handleLogin = (e) => {
                 e.preventDefault();
                 const found = users.find(u => u.username.toUpperCase() === loginUsername.trim().toUpperCase() && u.password === loginPassword);
                 if (found) { setCurrentUser(found); setLoginError(''); setLoginUsername(''); setLoginPassword(''); }
                 else { setLoginError('用戶名稱或密碼錯誤！'); }
+            };
+
+            // 用戶自助修改自己密碼
+            const handleChangePassword = async (e) => {
+                e.preventDefault();
+                if (currentUser.password !== oldPasswordInput) {
+                    setPwdMsg('原密碼不正確！');
+                    return;
+                }
+                if (!newPasswordInput.trim()) {
+                    setPwdMsg('新密碼不能為空！');
+                    return;
+                }
+
+                const { setDoc, doc } = window.firebaseFns;
+                const updatedUsers = users.map(u => u.username === currentUser.username ? { ...u, password: newPasswordInput.trim() } : u);
+                
+                setUsers(updatedUsers);
+                await setDoc(doc(window.db, "users", "class2a"), { list: updatedUsers });
+
+                setPwdMsg('密碼修改成功！全網頁已即時更新。');
+                setTimeout(() => {
+                    setShowChangePwdModal(false);
+                    setOldPasswordInput('');
+                    setNewPasswordInput('');
+                    setPwdMsg('');
+                }, 2000);
             };
 
             if (!currentUser) {
@@ -195,21 +233,49 @@
             }
 
             return (
-                <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans">
-                    <header className="bg-slate-900 border-b border-slate-800 sticky top-0 z-50">
+                <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans relative">
+                    {/* 修改密碼彈窗 (Modal) */}
+                    {showChangePwdModal && (
+                        <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4">
+                            <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-md w-full p-6 space-y-4 shadow-2xl">
+                                <div className="flex justify-between items-center">
+                                    <h3 className="text-lg font-bold">修改我的密碼 ({currentUser.username})</h3>
+                                    <button onClick={() => setShowChangePwdModal(false)} className="text-slate-400 hover:text-white">✕</button>
+                                </div>
+                                {pwdMsg && <div className={`p-3 rounded-xl text-xs ${pwdMsg.includes('成功') ? 'bg-emerald-500/10 text-emerald-400' : 'bg-red-500/10 text-red-400'}`}>{pwdMsg}</div>}
+                                <form onSubmit={handleChangePassword} className="space-y-4">
+                                    <div>
+                                        <label className="block text-xs text-slate-400 mb-1">原密碼</label>
+                                        <input type="password" required value={oldPasswordInput} onChange={e => setOldPasswordInput(e.target.value)} className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2 text-sm" />
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs text-slate-400 mb-1">新密碼</label>
+                                        <input type="password" required value={newPasswordInput} onChange={e => setNewPasswordInput(e.target.value)} className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2 text-sm" />
+                                    </div>
+                                    <div className="flex gap-2 pt-2">
+                                        <button type="submit" className="flex-1 bg-blue-600 hover:bg-blue-500 text-white py-2 rounded-xl text-sm font-semibold">確認修改</button>
+                                        <button type="button" onClick={() => setShowChangePwdModal(false)} className="bg-slate-800 hover:bg-slate-700 text-slate-300 px-4 py-2 rounded-xl text-sm">取消</button>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
+                    )}
+
+                    <header className="bg-slate-900 border-b border-slate-800 sticky top-0 z-40">
                         <div className="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
                             <div className="flex items-center space-x-3">
                                 <span className="text-xl font-black bg-gradient-to-r from-blue-400 to-indigo-300 bg-clip-text text-transparent">2Aplus</span>
                                 <span className="text-xs bg-slate-800 text-slate-400 px-2 py-0.5 rounded-md border border-slate-700">雲端同步版</span>
                             </div>
-                            <div className="flex items-center space-x-4">
+                            <div className="flex items-center space-x-3">
                                 <div className="flex items-center space-x-2 bg-slate-800 px-3 py-1.5 rounded-xl border border-slate-700 text-sm font-semibold">
                                     <span>{currentUser.username}</span>
                                     <span className={`text-[11px] px-2 py-0.5 rounded-md font-bold ${currentUser.permission === 3 ? 'bg-purple-500/20 text-purple-400' : currentUser.permission === 2 ? 'bg-amber-500/20 text-amber-400' : 'bg-slate-700 text-slate-300'}`}>
                                         {currentUser.permission === 3 ? 'LV.3 BOSS' : currentUser.permission === 2 ? 'LV.2 ADMIN' : 'LV.1 USER'}
                                     </span>
                                 </div>
-                                <button onClick={() => setCurrentUser(null)} className="p-2 text-slate-400 hover:text-red-400 rounded-xl"><svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg></button>
+                                <button onClick={() => setShowChangePwdModal(true)} className="text-xs bg-slate-800 hover:bg-slate-700 text-slate-200 px-3 py-2 rounded-xl transition-all">修改密碼</button>
+                                <button onClick={() => setCurrentUser(null)} className="p-2 text-slate-400 hover:text-red-400 rounded-xl" title="登出"><svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg></button>
                             </div>
                         </div>
                         <div className="max-w-7xl mx-auto px-4 flex space-x-1 border-t border-slate-800 overflow-x-auto">
@@ -557,7 +623,8 @@
 
                         {activeTab === 'admin' && currentUser.permission === 3 && (
                             <div className="space-y-6">
-                                <h2 className="text-2xl font-bold">後台帳號與權限控制 (LV.3 Boss)</h2>
+                                <h2 className="text-2xl font-bold">後台帳號與權限控制 (LV.3 Boss 專屬)</h2>
+                                <p className="text-slate-400 text-sm">你可以隨時查看全班 35 位同學的明文密碼，並進行重設或調整權限等級。</p>
                                 {adminMsg && <div className="bg-emerald-500/10 text-emerald-400 p-3 rounded-xl text-sm">{adminMsg}</div>}
                                 <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6">
                                     <form onSubmit={async e => {
@@ -566,10 +633,8 @@
                                         const { setDoc, doc } = window.firebaseFns;
                                         const updatedUsers = users.map(u => u.username === selectedUser ? { ...u, password: newPassword.trim() ? newPassword.trim() : u.password, permission: Number(newPermLevel) } : u);
                                         setUsers(updatedUsers);
-                                        // 儲存全部用戶到 Firestore 的 users/class2a 文件中
                                         await setDoc(doc(window.db, "users", "class2a"), { list: updatedUsers });
-                                        if (currentUser.username === selectedUser) setCurrentUser(prev => ({ ...prev, password: newPassword.trim() ? newPassword.trim() : prev.password, permission: Number(newPermLevel) }));
-                                        setAdminMsg(`成功更新 ${selectedUser} 的資料！`);
+                                        setAdminMsg(`成功更新 ${selectedUser} 的資料！全網頁已即時同步。`);
                                         setTimeout(() => setAdminMsg(''), 3000);
                                         setNewPassword('');
                                     }} className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -589,13 +654,13 @@
                                 <div className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden">
                                     <table className="w-full text-left text-sm text-slate-300">
                                         <thead className="bg-slate-950 text-xs uppercase text-slate-500 border-b border-slate-800">
-                                            <tr><th className="p-4">學號</th><th className="p-4">密碼</th><th className="p-4">權限級別</th></tr>
+                                            <tr><th className="p-4">學號</th><th className="p-4">目前密碼 (明文)</th><th className="p-4">權限級別</th></tr>
                                         </thead>
                                         <tbody className="divide-y divide-slate-800">
                                             {users.map(u => (
                                                 <tr key={u.username} className="hover:bg-slate-800/30">
                                                     <td className="p-4 font-bold font-mono">{u.username}</td>
-                                                    <td className="p-4 font-mono text-slate-400">{u.password}</td>
+                                                    <td className="p-4 font-mono text-slate-400 bg-slate-950/50">{u.password}</td>
                                                     <td className="p-4"><span className={`text-xs px-2 py-0.5 rounded font-bold ${u.permission === 3 ? 'bg-purple-500/20 text-purple-400' : u.permission === 2 ? 'bg-amber-500/20 text-amber-400' : 'bg-slate-800 text-slate-400'}`}>LV.{u.permission}</span></td>
                                                 </tr>
                                             ))}
