@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>2Aplus </title>
+    <title>2Aplus</title>
     <!-- Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- React & ReactDOM CDN -->
@@ -83,6 +83,17 @@
             { username: '2A', password: '2A', permission: 1 },
         ];
 
+        // 輔助函式：根據權限取得對應顏色標籤與顯示名稱
+        const getPermissionBadgeStyle = (perm) => {
+            switch (perm) {
+                case 5: return { label: 'LV.5 BOSS', className: 'bg-purple-500/20 text-purple-400 border border-purple-500/30' };
+                case 4: return { label: 'LV.4 Important Person', className: 'bg-blue-500/20 text-blue-400 border border-blue-500/30' };
+                case 3: return { label: 'LV.3 Class Union', className: 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' };
+                case 2: return { label: 'LV.2 ADMIN', className: 'bg-amber-500/20 text-amber-400 border border-amber-500/30' };
+                default: return { label: 'LV.1 USER', className: 'bg-slate-800 text-slate-300 border border-slate-700' };
+            }
+        };
+
         function App() {
             const [users, setUsers] = useState(INITIAL_USERS);
             const [currentUser, setCurrentUser] = useState(() => {
@@ -159,11 +170,11 @@
                 };
             }, []);
 
-            // 即時同步當前登入用戶在 users 列表中的最新狀態（密碼/權限變更後全網頁自動更新）
+            // 即時同步當前登入用戶在 users 列表中的最新狀態
             useEffect(() => {
                 if (currentUser) {
                     const latestUser = users.find(u => u.username === currentUser.username);
-                    if (latestUser) {
+                    if (latestUser && (latestUser.password !== currentUser.password || latestUser.permission !== currentUser.permission)) {
                         setCurrentUser(latestUser);
                         localStorage.setItem('2aplus_current_user', JSON.stringify(latestUser));
                     }
@@ -210,13 +221,13 @@
                         <div className="w-full max-w-md bg-slate-900 rounded-3xl shadow-2xl border border-slate-800 p-8 space-y-6">
                             <div className="text-center">
                                 <h1 className="text-3xl font-black bg-gradient-to-r from-blue-400 to-indigo-300 bg-clip-text text-transparent">2Aplus 雲端平台</h1>
-                                <p className="text-slate-400 text-sm mt-1"> 2A PLUS 2.0+</p>
+                                <p className="text-slate-400 text-sm mt-1">2A PLUS 2.0+</p>
                             </div>
                             <form onSubmit={handleLogin} className="space-y-4">
                                 {loginError && <div className="bg-red-500/10 border border-red-500/50 rounded-xl p-3 text-red-400 text-xs">{loginError}</div>}
                                 <div>
                                     <label className="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2">學號 / 用戶名稱</label>
-                                    <input type="text" required placeholder="例如: 2A01 " value={loginUsername} onChange={e => setLoginUsername(e.target.value)} className="w-full bg-slate-950 border border-slate-800 rounded-xl py-3 px-4 text-slate-100 text-sm" />
+                                    <input type="text" required placeholder="例如: 2A01" value={loginUsername} onChange={e => setLoginUsername(e.target.value)} className="w-full bg-slate-950 border border-slate-800 rounded-xl py-3 px-4 text-slate-100 text-sm" />
                                 </div>
                                 <div>
                                     <label className="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2">密碼</label>
@@ -232,6 +243,8 @@
                     </div>
                 );
             }
+
+            const badgeInfo = getPermissionBadgeStyle(currentUser.permission);
 
             return (
                 <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans relative">
@@ -271,9 +284,8 @@
                             <div className="flex items-center space-x-3">
                                 <div className="flex items-center space-x-2 bg-slate-800 px-3 py-1.5 rounded-xl border border-slate-700 text-sm font-semibold">
                                     <span>{currentUser.username}</span>
-                                    <span className={`text-[11px] px-2 py-0.5 rounded-md font-bold ${currentUser.permission === 5 ? 'bg-purple-500/20 text-purple-400' : ${[2, 3, 4].includes(currentUser.permission) ? 'bg-amber-500/20 text-amber-400' : 'bg-slate-700 text-slate-300'}`}>
-
-                                        {currentUser.permission === 5 ? 'LV.5 BOSS' :  currentUser.permission === 4 ? 'LV.4 Important Person' :  currentUser.permission === 3 ? 'LV.3 Class Union' :currentUser.permission === 2 ? 'LV.2 ADMIN' : 'LV.1 USER'}
+                                    <span className={`text-[11px] px-2 py-0.5 rounded-md font-bold ${badgeInfo.className}`}>
+                                        {badgeInfo.label}
                                     </span>
                                 </div>
                                 <button onClick={() => setShowChangePwdModal(true)} className="text-xs bg-slate-800 hover:bg-slate-700 text-slate-200 px-3 py-2 rounded-xl transition-all">修改密碼</button>
@@ -299,7 +311,7 @@
                     <main className="flex-1 max-w-7xl w-full mx-auto px-4 py-8">
                         {activeTab === 'homework' && (
                             <div className="space-y-6">
-                                <h2 className="text-2xl font-bold">班級功課清單 </h2>
+                                <h2 className="text-2xl font-bold">班級功課清單</h2>
                                 {currentUser.permission >= 2 && (
                                     <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6">
                                         <h3 className="text-base font-semibold text-blue-400 mb-4">{editingHwId ? '修改功課' : '新增功課'}</h3>
@@ -522,14 +534,20 @@
                                                     </div>
                                                 ))}
                                                 <div className="flex gap-2 pt-1">
-                                                    <input type="text" placeholder="撰寫解答..." id={`ans-${qa.id}`} className="flex-1 bg-slate-950 border border-slate-800 rounded-xl px-4 py-1.5 text-sm" />
+                                                    <input 
+                                                        type="text" 
+                                                        placeholder="撰寫解答..." 
+                                                        value={ansTextMap[qa.id] || ''} 
+                                                        onChange={e => setAnsTextMap({...ansTextMap, [qa.id]: e.target.value})} 
+                                                        className="flex-1 bg-slate-950 border border-slate-800 rounded-xl px-4 py-1.5 text-sm" 
+                                                    />
                                                     <button onClick={async () => {
-                                                        const input = document.getElementById(`ans-${qa.id}`);
-                                                        if (!input.value.trim()) return;
+                                                        const text = ansTextMap[qa.id];
+                                                        if (!text || !text.trim()) return;
                                                         const { updateDoc, doc } = window.firebaseFns;
-                                                        const newAnswers = [...(qa.answers || []), { id: Date.now(), author: currentUser.username, content: input.value }];
+                                                        const newAnswers = [...(qa.answers || []), { id: Date.now(), author: currentUser.username, content: text.trim() }];
                                                         await updateDoc(doc(window.db, "qa", qa.id), { answers: newAnswers });
-                                                        input.value = '';
+                                                        setAnsTextMap({...ansTextMap, [qa.id]: ''});
                                                     }} className="bg-blue-600 text-white px-4 py-1.5 rounded-xl text-sm">回覆</button>
                                                 </div>
                                             </div>
@@ -547,10 +565,27 @@
                                         <h3 className="text-base font-semibold text-indigo-400 mb-4">{editingVoteId ? '修改投票' : '發起新投票'}</h3>
                                         <form onSubmit={async e => {
                                             e.preventDefault();
-                                            const validOptions = voteOptions.filter(opt => opt.trim() !== '');
-                                            if (validOptions.length < 2) return;
+                                            const validOptionsTexts = voteOptions.filter(opt => opt.trim() !== '');
+                                            if (validOptionsTexts.length < 2) return;
                                             const { collection, addDoc, updateDoc, doc } = window.firebaseFns;
-                                            const payload = { title: voteTitle, isAnonymous: voteIsAnonymous, isMultiple: voteIsMultiple, options: validOptions.map((text, idx) => ({ id: idx + 1, text, votes: [] })) };
+
+                                            let finalOptions;
+                                            if (editingVoteId) {
+                                                const existingVote = votes.find(v => v.id === editingVoteId);
+                                                // 保留原本選項已有的 votes 記錄，對應文字相同或依序對應
+                                                finalOptions = validOptionsTexts.map((text, idx) => {
+                                                    const matchedOld = existingVote?.options?.[idx];
+                                                    return {
+                                                        id: idx + 1,
+                                                        text: text,
+                                                        votes: matchedOld ? (matchedOld.votes || []) : []
+                                                    };
+                                                });
+                                            } else {
+                                                finalOptions = validOptionsTexts.map((text, idx) => ({ id: idx + 1, text, votes: [] }));
+                                            }
+
+                                            const payload = { title: voteTitle, isAnonymous: voteIsAnonymous, isMultiple: voteIsMultiple, options: finalOptions };
                                             if (editingVoteId) {
                                                 await updateDoc(doc(window.db, "votes", editingVoteId), payload);
                                                 setEditingVoteId(null);
@@ -571,7 +606,12 @@
                                                 <label><input type="checkbox" checked={voteIsAnonymous} onChange={e => setVoteIsAnonymous(e.target.checked)} /> 匿名投票</label>
                                                 <label><input type="checkbox" checked={voteIsMultiple} onChange={e => setVoteIsMultiple(e.target.checked)} /> 允許多選</label>
                                             </div>
-                                            <button type="submit" className="bg-indigo-600 text-white px-6 py-2 rounded-xl text-sm font-semibold">{editingVoteId ? '儲存修改' : '發起投票'}</button>
+                                            <div className="flex gap-2">
+                                                <button type="submit" className="flex-1 bg-indigo-600 text-white px-6 py-2 rounded-xl text-sm font-semibold">{editingVoteId ? '儲存修改' : '發起投票'}</button>
+                                                {editingVoteId && (
+                                                    <button type="button" onClick={() => { setEditingVoteId(null); setVoteTitle(''); setVoteOptions(['', '']); }} className="bg-slate-800 text-slate-300 px-4 py-2 rounded-xl text-sm">取消</button>
+                                                )}
+                                            </div>
                                         </form>
                                     </div>
                                 )}
@@ -582,7 +622,7 @@
                                             <div key={v.id} className="bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-4">
                                                 <div className="flex justify-between items-start">
                                                     <h3 className="text-xl font-bold">{v.title}</h3>
-                                                    {currentUser.permission >= 2 && (
+                                                    {currentUser.permission >= 3 && (
                                                         <div className="flex gap-2 text-xs">
                                                             <button onClick={() => { setEditingVoteId(v.id); setVoteTitle(v.title); setVoteIsAnonymous(v.isAnonymous); setVoteIsMultiple(v.isMultiple); setVoteOptions(v.options.map(o => o.text)); }} className="text-blue-400">編輯</button>
                                                             <button onClick={async () => { await window.firebaseFns.deleteDoc(window.firebaseFns.doc(window.db, "votes", v.id)); }} className="text-red-400">刪除</button>
@@ -626,7 +666,7 @@
                         {activeTab === 'admin' && currentUser.permission === 5 && (
                             <div className="space-y-6">
                                 <h2 className="text-2xl font-bold">後台帳號與權限控制 (LV.5 Boss 專屬)</h2>
-                                <p className="text-slate-400 text-sm">你可以隨時重設全班35位同學的密碼或調整權限等級。</p>
+                                <p className="text-slate-400 text-sm">你可以隨時重設全班同學的密碼或調整權限等級。</p>
                                 {adminMsg && <div className="bg-emerald-500/10 text-emerald-400 p-3 rounded-xl text-sm">{adminMsg}</div>}
                                 <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6">
                                     <form onSubmit={async e => {
@@ -661,13 +701,16 @@
                                             <tr><th className="p-4">學號</th><th className="p-4">目前密碼 (明文)</th><th className="p-4">權限級別</th></tr>
                                         </thead>
                                         <tbody className="divide-y divide-slate-800">
-                                            {users.map(u => (
-                                                <tr key={u.username} className="hover:bg-slate-800/30">
-                                                    <td className="p-4 font-bold font-mono">{u.username}</td>
-                                                    <td className="p-4 font-mono text-slate-400 bg-slate-950/50">{u.password}</td>
-                                                    <td className="p-4"><span className={`text-xs px-2 py-0.5 rounded font-bold ${u.permission === 3 ? 'bg-purple-500/20 text-purple-400' : u.permission === 2 ? 'bg-amber-500/20 text-amber-400' : 'bg-slate-800 text-slate-400'}`}>LV.{u.permission}</span></td>
-                                                </tr>
-                                            ))}
+                                            {users.map(u => {
+                                                const bStyle = getPermissionBadgeStyle(u.permission);
+                                                return (
+                                                    <tr key={u.username} className="hover:bg-slate-800/30">
+                                                        <td className="p-4 font-bold font-mono">{u.username}</td>
+                                                        <td className="p-4 font-mono text-slate-400 bg-slate-950/50">{u.password}</td>
+                                                        <td className="p-4"><span className={`text-xs px-2 py-0.5 rounded font-bold ${bStyle.className}`}>{bStyle.label}</span></td>
+                                                    </tr>
+                                                );
+                                            })}
                                         </tbody>
                                     </table>
                                 </div>
