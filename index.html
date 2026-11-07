@@ -49,7 +49,7 @@
             { username: '2A02', password: '2A02', permission: 1 },
             { username: '2A03', password: '2A03', permission: 1 },
             { username: '2A04', password: '2A04', permission: 1 },
-            { username: '2A05', password: '2A05', permission: 3 }, // LV.3 Boss
+            { username: '2A05', password: '2A05', permission: 5 }, // LV.3 Boss
             { username: '2A06', password: '2A06', permission: 1 },
             { username: '2A07', password: '2A07', permission: 1 },
             { username: '2A08', password: '2A08', permission: 1 },
@@ -80,6 +80,7 @@
             { username: '2A33', password: '2A33', permission: 1 },
             { username: '2A34', password: '2A34', permission: 1 },
             { username: '2A35', password: '2A35', permission: 1 },
+            { username: '2A', password: '2A', permission: 1 },
         ];
 
         function App() {
@@ -270,8 +271,9 @@
                             <div className="flex items-center space-x-3">
                                 <div className="flex items-center space-x-2 bg-slate-800 px-3 py-1.5 rounded-xl border border-slate-700 text-sm font-semibold">
                                     <span>{currentUser.username}</span>
-                                    <span className={`text-[11px] px-2 py-0.5 rounded-md font-bold ${currentUser.permission === 3 ? 'bg-purple-500/20 text-purple-400' : currentUser.permission === 2 ? 'bg-amber-500/20 text-amber-400' : 'bg-slate-700 text-slate-300'}`}>
-                                        {currentUser.permission === 3 ? 'LV.3 BOSS' : currentUser.permission === 2 ? 'LV.2 ADMIN' : 'LV.1 USER'}
+                                    <span className={`text-[11px] px-2 py-0.5 rounded-md font-bold ${currentUser.permission === 5 ? 'bg-purple-500/20 text-purple-400' : ${[2, 3, 4].includes(currentUser.permission) ? 'bg-amber-500/20 text-amber-400' : 'bg-slate-700 text-slate-300'}`}>
+
+                                        {currentUser.permission === 5 ? 'LV.5 BOSS' :  currentUser.permission === 4 ? 'LV.4 Important Person' :  currentUser.permission === 3 ? 'LV.3 Class Union' :currentUser.permission === 2 ? 'LV.2 ADMIN' : 'LV.1 USER'}
                                     </span>
                                 </div>
                                 <button onClick={() => setShowChangePwdModal(true)} className="text-xs bg-slate-800 hover:bg-slate-700 text-slate-200 px-3 py-2 rounded-xl transition-all">修改密碼</button>
@@ -285,7 +287,7 @@
                                 { id: 'announcement', label: '重要公告' },
                                 { id: 'qa', label: '課業互助區' },
                                 { id: 'vote', label: '班會投票' },
-                                ...(currentUser.permission === 3 ? [{ id: 'admin', label: '後台帳號管理' }] : [])
+                                ...(currentUser.permission === 5 ? [{ id: 'admin', label: '後台帳號管理' }] : [])
                             ].map(tab => (
                                 <button key={tab.id} onClick={() => setActiveTab(tab.id)} className={`px-4 py-3 text-sm font-semibold border-b-2 whitespace-nowrap transition-all ${activeTab === tab.id ? 'border-blue-500 text-blue-400 bg-slate-800/40' : 'border-transparent text-slate-400 hover:text-slate-200'}`}>
                                     {tab.label}
@@ -297,7 +299,7 @@
                     <main className="flex-1 max-w-7xl w-full mx-auto px-4 py-8">
                         {activeTab === 'homework' && (
                             <div className="space-y-6">
-                                <h2 className="text-2xl font-bold">班級功課清單 (雲端實時同步)</h2>
+                                <h2 className="text-2xl font-bold">班級功課清單 </h2>
                                 {currentUser.permission >= 2 && (
                                     <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6">
                                         <h3 className="text-base font-semibold text-blue-400 mb-4">{editingHwId ? '修改功課' : '新增功課'}</h3>
@@ -540,7 +542,7 @@
                         {activeTab === 'vote' && (
                             <div className="space-y-6">
                                 <h2 className="text-2xl font-bold">班會投票區</h2>
-                                {currentUser.permission >= 2 && (
+                                {currentUser.permission >= 3 && (
                                     <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6">
                                         <h3 className="text-base font-semibold text-indigo-400 mb-4">{editingVoteId ? '修改投票' : '發起新投票'}</h3>
                                         <form onSubmit={async e => {
@@ -621,10 +623,10 @@
                             </div>
                         )}
 
-                        {activeTab === 'admin' && currentUser.permission === 3 && (
+                        {activeTab === 'admin' && currentUser.permission === 5 && (
                             <div className="space-y-6">
-                                <h2 className="text-2xl font-bold">後台帳號與權限控制 (LV.3 Boss 專屬)</h2>
-                                <p className="text-slate-400 text-sm">你可以隨時查看全班 35 位同學的明文密碼，並進行重設或調整權限等級。</p>
+                                <h2 className="text-2xl font-bold">後台帳號與權限控制 (LV.5 Boss 專屬)</h2>
+                                <p className="text-slate-400 text-sm">你可以隨時重設全班35位同學的密碼或調整權限等級。</p>
                                 {adminMsg && <div className="bg-emerald-500/10 text-emerald-400 p-3 rounded-xl text-sm">{adminMsg}</div>}
                                 <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6">
                                     <form onSubmit={async e => {
@@ -646,7 +648,9 @@
                                         <select value={newPermLevel} onChange={e => setNewPermLevel(e.target.value)} className="bg-slate-950 border border-slate-800 rounded-xl px-4 py-2 text-sm text-slate-200">
                                             <option value={1}>LV.1 - USER</option>
                                             <option value={2}>LV.2 - ADMIN</option>
-                                            <option value={3}>LV.3 - BOSS</option>
+                                            <option value={3}>LV.3 - Class Union</option>
+                                            <option value={4}>LV.4 - Important Person</option>
+                                            <option value={5}>LV.5 - BOSS</option>
                                         </select>
                                         <button type="submit" className="bg-purple-600 hover:bg-purple-500 text-white font-semibold py-2 rounded-xl text-sm">確認覆寫</button>
                                     </form>
